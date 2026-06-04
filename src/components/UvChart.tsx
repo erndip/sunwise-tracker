@@ -89,11 +89,16 @@ export const UvChart: React.FC<UvChartProps> = ({
     .map((p) => `${p.x},${p.y}`)
     .join(' ');
 
+  // When the Start/End markers sit close together their 50px-wide labels overlap,
+  // so lift the End label above the Start label to keep both legible.
+  const labelsClose = startHour < endHour && getX(endHour) - getX(startHour) < 60;
+  const endLabelLift = labelsClose ? 16 : 0;
+
   // Standard UV Gridlines levels: 3, 6, 8, 11
   const gridLevels = [3, 6, 8, 11];
 
   return (
-    <div className="w-full bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-inner">
+    <div className="w-full bg-slate-900 border border-slate-800 rounded-2xl p-3 sm:p-5 shadow-inner">
       <div className="flex flex-wrap items-center justify-between mb-4">
         <div>
           <h4 className="text-sm font-semibold text-slate-200 uppercase tracking-wider">
@@ -115,8 +120,8 @@ export const UvChart: React.FC<UvChartProps> = ({
         </div>
       </div>
 
-      {/* SVG Container */}
-      <div className="relative w-full overflow-x-auto min-w-[500px]">
+      {/* SVG Container — scales down to fit narrow screens via the viewBox */}
+      <div className="relative w-full">
         <svg
           viewBox={`0 0 ${width} ${height}`}
           className="w-full h-auto text-slate-400 select-none overflow-visible"
@@ -290,7 +295,7 @@ export const UvChart: React.FC<UvChartProps> = ({
                 />
                 <rect
                   x={getX(endHour) - 25}
-                  y={getY(getUviAt(endHour)) - 25}
+                  y={getY(getUviAt(endHour)) - 25 - endLabelLift}
                   width="50"
                   height="14"
                   rx="3"
@@ -300,7 +305,7 @@ export const UvChart: React.FC<UvChartProps> = ({
                 />
                 <text
                   x={getX(endHour)}
-                  y={getY(getUviAt(endHour)) - 15}
+                  y={getY(getUviAt(endHour)) - 15 - endLabelLift}
                   textAnchor="middle"
                   className="fill-amber-400 text-[8px] font-mono font-bold"
                 >

@@ -20,21 +20,21 @@ import { FitzpatrickSelector } from './components/FitzpatrickSelector';
 import { SessionLog } from './components/SessionLog';
 import { TanningSession, LocationGeo } from './types';
 
-// Default Demo Location on first render: Miami FL, USA
+// Default Demo Location on first render: Madison WI, USA
 const DEFAULT_LOCATION: LocationGeo = {
-  name: 'Miami',
+  name: 'Madison',
   country: 'United States',
-  admin1: 'Florida',
-  latitude: 25.7743,
-  longitude: -80.1937,
-  timezone: 'America/New_York',
+  admin1: 'Wisconsin',
+  latitude: 43.0731,
+  longitude: -89.4012,
+  timezone: 'America/Chicago',
 };
 
 // Popular default destination shortcuts
 const QUICK_LOCATIONS: LocationGeo[] = [
+  { name: 'Madison', latitude: 43.0731, longitude: -89.4012, admin1: 'Wisconsin', country: 'United States', timezone: 'America/Chicago' },
   { name: 'Miami', latitude: 25.7743, longitude: -80.1937, admin1: 'Florida', country: 'United States', timezone: 'America/New_York' },
   { name: 'San Diego', latitude: 32.7157, longitude: -117.1611, admin1: 'California', country: 'United States', timezone: 'America/Los_Angeles' },
-  { name: 'Madison', latitude: 43.0731, longitude: -89.4012, admin1: 'Wisconsin', country: 'United States', timezone: 'America/Chicago' },
   { name: 'Sydney', latitude: -33.8688, longitude: 151.2093, admin1: 'New South Wales', country: 'Australia', timezone: 'Australia/Sydney' },
   { name: 'Barcelona', latitude: 41.3851, longitude: 2.1734, admin1: 'Catalonia', country: 'Spain', timezone: 'Europe/Madrid' },
   { name: 'Honolulu', latitude: 21.3069, longitude: -157.8583, admin1: 'Hawaii', country: 'United States', timezone: 'Pacific/Honolulu' },
@@ -339,11 +339,11 @@ export default function App() {
       
       {/* Premium Warm Amber Navigation Navbar */}
       <header className="sticky top-0 z-50 backdrop-blur-md bg-white/80 dark:bg-slate-950/80 border-b border-slate-200/60 dark:border-slate-900 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2.5 sm:py-0 sm:h-16 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
+
           {/* Logo & Headline */}
-          <div className="flex items-center space-x-2.5">
-            <div className="p-2 bg-amber-500 rounded-xl text-white shadow-md shadow-amber-500/20 animate-pulse">
+          <div className="flex items-center space-x-2.5 shrink-0">
+            <div className="p-2 bg-amber-500 rounded-xl text-white shadow-md shadow-amber-500/20">
               <Sun className="w-5 h-5 fill-white shrink-0" />
             </div>
             <div>
@@ -357,7 +357,7 @@ export default function App() {
           </div>
 
           {/* Tab Navigation Center */}
-          <nav className="flex space-x-1 bg-slate-100 dark:bg-slate-900 p-1 rounded-xl">
+          <nav className="flex space-x-1 bg-slate-100 dark:bg-slate-900 p-1 rounded-xl w-full sm:w-auto justify-between sm:justify-start overflow-x-auto whitespace-nowrap">
             <button
               onClick={() => setActiveTab('calculator')}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold tracking-wide transition-all ${
@@ -405,7 +405,7 @@ export default function App() {
       </header>
 
       {/* Main Container workspace */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
         
         {/* Dynamic State Alert Banner */}
         {apiError && (
@@ -420,13 +420,10 @@ export default function App() {
 
         {/* Tab 1: Integrative UV Dosage Calculator */}
         {activeTab === 'calculator' && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-            
-            {/* Left Box (Parameters panel) -- spans 5 of 12 */}
-            <div className="lg:col-span-5 space-y-6">
-              
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">
+
               {/* Geocoding, weather station, and location card inputs */}
-              <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-5">
+              <div className="lg:col-span-5 lg:col-start-1 lg:row-start-1 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-5">
                 <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800/80 pb-3">
                   <div className="flex items-center space-x-2">
                     <MapPin className="w-5 h-5 text-amber-500" />
@@ -525,11 +522,11 @@ export default function App() {
                   <div className="text-[10px] text-slate-400 dark:text-slate-500 font-semibold uppercase tracking-wider">
                     Active Coordinates
                   </div>
-                  <div className="flex justify-between items-center text-xs">
+                  <div className="flex flex-wrap justify-between items-center gap-x-2 gap-y-0.5 text-xs">
                     <span className="font-bold text-slate-800 dark:text-slate-100">
                       {selectedLocation.name}
                     </span>
-                    <span className="font-mono text-slate-500 dark:text-slate-400">
+                    <span className="font-mono text-[11px] text-slate-500 dark:text-slate-400">
                       {selectedLocation.latitude.toFixed(4)}°N, {selectedLocation.longitude.toFixed(4)}°E
                     </span>
                   </div>
@@ -541,7 +538,7 @@ export default function App() {
                       type="date"
                       value={currentDate}
                       onChange={(e) => setCurrentDate(e.target.value)}
-                      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-xs font-mono outline-none text-slate-800 dark:text-slate-100 cursor-pointer"
+                      className="block w-full max-w-full min-w-0 appearance-none bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-xs font-mono outline-none text-slate-800 dark:text-slate-100 cursor-pointer"
                     />
                   </div>
                   <div className="mt-2 text-[10px] text-slate-400 flex items-center justify-between">
@@ -555,13 +552,14 @@ export default function App() {
               </div>
 
               {/* Time Interval window selector */}
-              <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
+              <div className="lg:col-span-5 lg:col-start-1 lg:row-start-2 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
                 <div className="flex items-center space-x-2 border-b border-slate-100 dark:border-slate-800/80 pb-3">
                   <Clock className="w-5 h-5 text-amber-500" />
                   <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm">
                     2. Sunbathing Exposure window
                   </h3>
-                                 <div className="grid grid-cols-2 gap-4">
+                </div>
+                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
                       Start Time
@@ -616,7 +614,7 @@ export default function App() {
                       </div>
                     </div>
                   </div>
-                </div>  </div>
+                </div>
 
                 {/* Exposure length insight */}
                 {startHourNum >= endHourNum ? (
@@ -634,18 +632,8 @@ export default function App() {
                 )}
               </div>
 
-              {/* Fitzpatrick skin selector */}
-              <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
-                <FitzpatrickSelector selectedType={skinType} onChange={handleSkinTypeChange} />
-              </div>
-
-            </div>
-
-            {/* Right Box (Dashboard Analysis & Chart) -- spans 7 of 12 */}
-            <div className="lg:col-span-7 space-y-6">
-              
-              {/* Dynamic SVGCurve integrated highlights chart */}
-              <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm">
+              {/* Dynamic SVGCurve integrated highlights chart — surfaced near the top on mobile */}
+              <div className="lg:col-span-7 lg:col-start-6 lg:row-start-1 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-2.5 sm:p-5 shadow-sm">
                 <UvChart
                   forecastUvi={forecastUvi}
                   startTime={startTime}
@@ -654,8 +642,13 @@ export default function App() {
                 />
               </div>
 
+              {/* Fitzpatrick skin selector */}
+              <div className="lg:col-span-5 lg:col-start-1 lg:row-start-3 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
+                <FitzpatrickSelector selectedType={skinType} onChange={handleSkinTypeChange} />
+              </div>
+
               {/* Advanced radiation calculation outputs card */}
-              <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-6 shadow-sm space-y-6">
+              <div className="lg:col-span-7 lg:col-start-6 lg:row-start-2 lg:row-span-2 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 sm:p-6 shadow-sm space-y-6">
                 
                 {/* Section title & badge */}
                 <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800/80 pb-4">
@@ -861,8 +854,6 @@ export default function App() {
 
               </div>
 
-            </div>
-
           </div>
         )}
 
@@ -980,7 +971,7 @@ export default function App() {
       </main>
 
       {/* Humble Footer, beautifully balanced with no margin clutter */}
-      <footer className="mt-20 border-t border-slate-200/50 dark:border-slate-900 h-16 flex items-center justify-between text-xs text-slate-400 dark:text-slate-650 px-8 max-w-7xl mx-auto font-mono">
+      <footer className="mt-12 sm:mt-20 border-t border-slate-200/50 dark:border-slate-900 py-5 sm:h-16 sm:py-0 flex flex-col sm:flex-row items-center justify-between gap-1.5 text-center sm:text-left text-[11px] sm:text-xs text-slate-400 dark:text-slate-650 px-4 sm:px-8 max-w-7xl mx-auto font-mono">
         <span>Sunwise Integration Calculus Model</span>
         <span className="font-medium">Continuous UV Forecast Network Protocol</span>
       </footer>
