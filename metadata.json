@@ -1,0 +1,6 @@
+{
+  "name": "Sunwise UV Tanning Tracker",
+  "description": "Calculate precision UV exposure integrals and radiation doses based on location, time, and Fitzpatrick skin type.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
