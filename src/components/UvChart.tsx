@@ -1,5 +1,5 @@
 import React from 'react';
-import { parseTimeToDecimal } from '../utils/uvCalculator';
+import { parseTimeToDecimal, getRiskLevelColor } from '../utils/uvCalculator';
 
 interface UvChartProps {
   forecastUvi: number[];
@@ -250,7 +250,7 @@ export const UvChart: React.FC<UvChartProps> = ({
                   cx={getX(startHour)}
                   cy={getY(getUviAt(startHour))}
                   r="4"
-                  fill="#fbbf24"
+                  fill={getRiskLevelColor(getUviAt(startHour))}
                   stroke="#1e293b"
                   strokeWidth="1.5"
                 />
@@ -289,7 +289,7 @@ export const UvChart: React.FC<UvChartProps> = ({
                   cx={getX(endHour)}
                   cy={getY(getUviAt(endHour))}
                   r="4"
-                  fill="#fbbf24"
+                  fill={getRiskLevelColor(getUviAt(endHour))}
                   stroke="#1e293b"
                   strokeWidth="1.5"
                 />

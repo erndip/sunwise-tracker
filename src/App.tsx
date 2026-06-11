@@ -13,11 +13,16 @@ import {
   CalendarDays,
   Flame,
   PlusCircle,
+  Cloud,
+  CloudOff,
 } from 'lucide-react';
-import { integrateUvi, calculateDoseMetrics, parseTimeToDecimal, FITZPATRICK_TYPES, timeToMinutes, minutesToTime } from './utils/uvCalculator';
+import { integrateUvi, calculateDoseMetrics, parseTimeToDecimal, FITZPATRICK_TYPES, timeToMinutes, minutesToTime, getLocalDateISO } from './utils/uvCalculator';
 import { UvChart } from './components/UvChart';
 import { FitzpatrickSelector } from './components/FitzpatrickSelector';
 import { SessionLog } from './components/SessionLog';
+import { AuthButton } from './components/AuthButton';
+import { useAuth } from './contexts/AuthContext';
+import { useSessions } from './hooks/useSessions';
 import { TanningSession, LocationGeo } from './types';
 
 // Default Demo Location on first render: Madison WI, USA
@@ -48,10 +53,7 @@ export default function App() {
   const [locationQuery, setLocationQuery] = useState('');
   const [searchResults, setSearchResults] = useState<LocationGeo[]>([]);
   const [selectedLocation, setSelectedLocation] = useState<LocationGeo>(DEFAULT_LOCATION);
-  const [currentDate, setCurrentDate] = useState(() => {
-    const today = new Date();
-    return today.toISOString().split('T')[0];
-  });
+  const [currentDate, setCurrentDate] = useState(() => getLocalDateISO());
   const [startTime, setStartTime] = useState('11:00');
   const [endTime, setEndTime] = useState('13:00');
   const [skinType, setSkinType] = useState<number>(3); // Default to Fitzpatrick Type III
@@ -59,25 +61,17 @@ export default function App() {
 
   // Weather API states
   const [forecastUvi, setForecastUvi] = useState<number[]>([]);
-  const [currentUvIndex, setCurrentUvIndex] = useState<number>(0);
   const [loading, setLoading] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
 
-  // Saved tanning sessions (from localStorage)
-  const [sessions, setSessions] = useState<TanningSession[]>([]);
+  // Auth + persistence. Sessions are offline-first (localStorage) and sync to
+  // the signed-in user's Firestore account when available — see useSessions.
+  const { user, isConfigured } = useAuth();
+  const { sessions, syncState, addSession, updateNotes, deleteSession, clearAll } = useSessions();
 
-  // Load tanning sessions and skin type preference from localStorage on mount
+  // Load skin type preference from localStorage on mount
   useEffect(() => {
-    const saved = localStorage.getItem('sunwise_sessions');
-    if (saved) {
-      try {
-        setSessions(JSON.parse(saved));
-      } catch (err) {
-        console.error('Failed to parse saved sessions', err);
-      }
-    }
-
     const savedSkin = localStorage.getItem('sunwise_skintype');
     if (savedSkin) {
       const parsedSkin = parseInt(savedSkin, 10);
@@ -102,7 +96,7 @@ export default function App() {
         const { latitude, longitude, timezone } = selectedLocation;
         // Fetch up to 7 days forecast. Open-Meteo provides hourly uv_index.
         // We filter or access the array corresponding to our selected date.
-        const url = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&hourly=uv_index&timezone=${encodeURIComponent(timezone)}`;
+        const url = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&hourly=uv_index&timezone=${encodeURIComponent(timezone)}&start_date=${currentDate}&end_date=${currentDate}`;
         
         const response = await fetch(url);
         if (!response.ok) {
@@ -116,21 +110,44 @@ export default function App() {
           const uvs: number[] = data.hourly.uv_index;
 
           // Find values belonging to selectedDate
-          // If selectedDate isn't found or is too far in future/past, default to first day's 24 hours
           const targetPrefix = currentDate;
           const targetIndices = dates
             .map((t, idx) => (t.startsWith(targetPrefix) ? idx : -1))
             .filter((idx) => idx !== -1);
 
           let dailyUvs: number[] = [];
+          
+          // Only use data if we found exactly 24 hourly entries for the selected date
           if (targetIndices.length === 24) {
             dailyUvs = targetIndices.map((idx) => uvs[idx]);
+          } else if (targetIndices.length > 0) {
+            // Partial data found for the date — use what we have
+            dailyUvs = targetIndices.map((idx) => uvs[idx]);
+            // Pad with zeros if needed
+            while (dailyUvs.length < 24) {
+              dailyUvs.push(0);
+            }
           } else {
-            // fallback: check if we can get first 24h
-            dailyUvs = uvs.slice(0, 24);
+            // No data found for the selected date
+            // Check if it's because the date is outside the forecast window
+            const firstDateStr = dates[0]?.split('T')[0] || '';
+            const lastDateStr = dates[dates.length - 1]?.split('T')[0] || '';
+            if (currentDate < firstDateStr || currentDate > lastDateStr) {
+              setApiError(`Selected date (${currentDate}) is outside the available forecast window (${firstDateStr} to ${lastDateStr}). Showing typical profile.`);
+            } else {
+              setApiError('Could not extract UV data for selected date. Showing typical profile.');
+            }
+            // Use mock fallback only when date is truly unavailable
+            dailyUvs = Array.from({ length: 24 }, (_, h) => {
+              if (h >= 6 && h <= 18) {
+                const dist = Math.abs(h - 12);
+                return Math.max(0, 6.5 * Math.exp(-(dist * dist) / 10));
+              }
+              return 0;
+            });
           }
 
-          // If dailyUvs is empty, mock a standard Gaussian distribution curve as safety fallback
+          // If all values are zero, use mock Gaussian distribution as safety fallback
           if (dailyUvs.length === 0 || dailyUvs.every((v) => v === 0)) {
             dailyUvs = Array.from({ length: 24 }, (_, h) => {
               // Bell curve centered at 12pm
@@ -143,10 +160,6 @@ export default function App() {
           }
 
           setForecastUvi(dailyUvs);
-
-          // Find current hour UV index for today
-          const nowHour = new Date().getHours();
-          setCurrentUvIndex(dailyUvs[nowHour] || 0);
         } else {
           throw new Error('Malformed forecast response.');
         }
@@ -161,7 +174,6 @@ export default function App() {
           return 0;
         });
         setForecastUvi(fallback);
-        setCurrentUvIndex(fallback[12]);
       } finally {
         setLoading(false);
       }
@@ -263,6 +275,8 @@ export default function App() {
   // Calculate integrated metrics for the currently selected session window
   const startHourNum = parseTimeToDecimal(startTime);
   const endHourNum = parseTimeToDecimal(endTime);
+  const minForecastDate = getLocalDateISO();
+  const maxForecastDate = getLocalDateISO(new Date(Date.now() + 6 * 24 * 60 * 60 * 1000));
   
   // UV Hours Integral calculation
   const uviHoursIntegral = integrateUvi(forecastUvi, startHourNum, endHourNum);
@@ -300,39 +314,20 @@ export default function App() {
       notes: sessionNotes.trim() ? sessionNotes.trim() : undefined,
     };
 
-    const updated = [newSession, ...sessions];
-    setSessions(updated);
-    localStorage.setItem('sunwise_sessions', JSON.stringify(updated));
+    addSession(newSession); // persists locally and to the cloud when signed in
     setSessionNotes(''); // reset pre-log notes
     setActiveTab('log'); // bounce to log tab so they immediately see their added card
-  };
-
-  // Update notes of a specific log entry after-the-fact
-  const handleUpdateNotes = (id: string, updatedNotes: string) => {
-    const updated = sessions.map((s) => {
-      if (s.id === id) {
-        return { ...s, notes: updatedNotes.trim() ? updatedNotes.trim() : undefined };
-      }
-      return s;
-    });
-    setSessions(updated);
-    localStorage.setItem('sunwise_sessions', JSON.stringify(updated));
-  };
-
-  // Delete log action
-  const handleDeleteSession = (id: string) => {
-    const filtered = sessions.filter((s) => s.id !== id);
-    setSessions(filtered);
-    localStorage.setItem('sunwise_sessions', JSON.stringify(filtered));
   };
 
   // Clear all log entries
   const handleClearAllSessions = () => {
     if (confirm('Are you strictly sure you want to clear your entire exposure logs database? This cannot be undone.')) {
-      setSessions([]);
-      localStorage.removeItem('sunwise_sessions');
+      clearAll();
     }
   };
+
+  // Current UTC date for the header status badge (re-derived each render).
+  const todayUtc = new Date().toISOString().slice(0, 10);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-100 font-sans transition-colors duration-200">
@@ -341,18 +336,23 @@ export default function App() {
       <header className="sticky top-0 z-50 backdrop-blur-md bg-white/80 dark:bg-slate-950/80 border-b border-slate-200/60 dark:border-slate-900 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2.5 sm:py-0 sm:h-16 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
 
-          {/* Logo & Headline */}
-          <div className="flex items-center space-x-2.5 shrink-0">
-            <div className="p-2 bg-amber-500 rounded-xl text-white shadow-md shadow-amber-500/20">
-              <Sun className="w-5 h-5 fill-white shrink-0" />
+          {/* Logo & Headline (sign-in sits beside it on mobile) */}
+          <div className="flex items-center justify-between gap-3 w-full sm:w-auto">
+            <div className="flex items-center space-x-2.5 shrink-0">
+              <div className="p-2 bg-amber-500 rounded-xl text-white shadow-md shadow-amber-500/20">
+                <Sun className="w-5 h-5 fill-white shrink-0" />
+              </div>
+              <div>
+                <h1 id="app-title" className="text-base font-bold text-slate-900 dark:text-amber-400 tracking-tight">
+                  Sunwise Tracker
+                </h1>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium tracking-wide uppercase">
+                  UV exposure calculus
+                </p>
+              </div>
             </div>
-            <div>
-              <h1 id="app-title" className="text-base font-bold text-slate-900 dark:text-amber-400 tracking-tight">
-                Sunwise Tracker
-              </h1>
-              <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium tracking-wide uppercase">
-                UV exposure calculus
-              </p>
+            <div className="sm:hidden">
+              <AuthButton />
             </div>
           </div>
 
@@ -395,10 +395,13 @@ export default function App() {
             </button>
           </nav>
 
-          {/* Time Badge Right (UTC standard timestamp tracker for strict precision UI) */}
-          <div className="hidden md:flex items-center space-x-2 text-xs font-mono text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900 hover:bg-slate-100 p-1.5 px-3 rounded-xl border border-slate-200/50 dark:border-slate-800">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 ring-2 ring-emerald-500/20"></span>
-            <span>2026-06-03 UTC</span>
+          {/* Right cluster: status badge + auth (auth shown beside the logo on mobile instead) */}
+          <div className="hidden sm:flex items-center gap-2 shrink-0">
+            <div className="hidden md:flex items-center space-x-2 text-xs font-mono text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900 hover:bg-slate-100 p-1.5 px-3 rounded-xl border border-slate-200/50 dark:border-slate-800">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 ring-2 ring-emerald-500/20"></span>
+              <span>{todayUtc} UTC</span>
+            </div>
+            <AuthButton />
           </div>
 
         </div>
@@ -536,10 +539,15 @@ export default function App() {
                   <div className="relative mt-1">
                     <input
                       type="date"
+                      min={minForecastDate}
+                      max={maxForecastDate}
                       value={currentDate}
                       onChange={(e) => setCurrentDate(e.target.value)}
                       className="block w-full max-w-full min-w-0 appearance-none bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-xs font-mono outline-none text-slate-800 dark:text-slate-100 cursor-pointer"
                     />
+                    <p className="mt-2 text-[10px] text-slate-400">
+                      Select a date within the 7-day forecast window ({minForecastDate} to {maxForecastDate}).
+                    </p>
                   </div>
                   <div className="mt-2 text-[10px] text-slate-400 flex items-center justify-between">
                     <span>Local Station Timezone:</span>
@@ -575,7 +583,7 @@ export default function App() {
                         type="range"
                         min="0"
                         max="1435"
-                        step="5"
+                        step="10"
                         value={timeToMinutes(startTime)}
                         onChange={(e) => setStartTime(minutesToTime(parseInt(e.target.value, 10)))}
                         className="w-full accent-amber-500 cursor-pointer h-1.5 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none outline-none"
@@ -602,7 +610,7 @@ export default function App() {
                         type="range"
                         min="0"
                         max="1435"
-                        step="5"
+                        step="10"
                         value={timeToMinutes(endTime)}
                         onChange={(e) => setEndTime(minutesToTime(parseInt(e.target.value, 10)))}
                         className="w-full accent-amber-500 cursor-pointer h-1.5 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none outline-none"
@@ -859,12 +867,29 @@ export default function App() {
 
         {/* Tab 2: Exposure Sessions Log Module */}
         {activeTab === 'log' && (
-          <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-6 shadow-sm">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl p-6 shadow-sm space-y-5">
+            {/* Sync status: where these logs live */}
+            {isConfigured && (
+              user ? (
+                <div className="flex items-center gap-2 text-xs px-3.5 py-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200/60 dark:border-emerald-900/50 text-emerald-800 dark:text-emerald-300">
+                  <Cloud className="w-4 h-4 shrink-0" />
+                  <span>
+                    {syncState === 'syncing' ? 'Syncing…' : 'Synced to your Google account'}
+                    {user.email ? <span className="font-medium"> · {user.email}</span> : null}
+                  </span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 text-xs px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950/40 border border-slate-200/70 dark:border-slate-800 text-slate-500 dark:text-slate-400">
+                  <CloudOff className="w-4 h-4 shrink-0" />
+                  <span>Saved on this device — sign in to sync your logs across devices.</span>
+                </div>
+              )
+            )}
             <SessionLog
               sessions={sessions}
-              onDelete={handleDeleteSession}
+              onDelete={deleteSession}
               onClearAll={handleClearAllSessions}
-              onUpdateNotes={handleUpdateNotes}
+              onUpdateNotes={updateNotes}
             />
           </div>
         )}

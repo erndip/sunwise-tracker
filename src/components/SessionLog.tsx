@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { TanningSession } from '../types';
+import { parseLocalDate } from '../utils/uvCalculator';
 import {
   Trash2,
   Calendar,
@@ -23,7 +24,7 @@ const SessionCard: React.FC<SessionCardProps> = ({ sess, onDelete, onUpdateNotes
   const [isEditing, setIsEditing] = useState(false);
   const [noteValue, setNoteValue] = useState(sess.notes || '');
 
-  const dateObj = new Date(sess.date);
+  const dateObj = parseLocalDate(sess.date);
   const formattedDate = isNaN(dateObj.getTime())
     ? sess.date
     : dateObj.toLocaleDateString('en-US', {

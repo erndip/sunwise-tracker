@@ -87,6 +87,27 @@ export function minutesToTime(totalMinutes: number): string {
 }
 
 /**
+ * Formats a date as a "YYYY-MM-DD" string in the LOCAL timezone.
+ * Unlike Date.toISOString(), this does not shift the calendar day to UTC,
+ * so it reflects the user's actual local date.
+ */
+export function getLocalDateISO(date: Date = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+/**
+ * Parses a "YYYY-MM-DD" string into a Date at LOCAL midnight.
+ * Avoids the off-by-one that `new Date("YYYY-MM-DD")` causes by parsing as UTC
+ * and then rendering in local time. Returns an Invalid Date for bad input.
+ */
+export function parseLocalDate(iso: string): Date {
+  const [y, m, d] = iso.split('-').map(Number);
+  if (isNaN(y) || isNaN(m) || isNaN(d)) return new Date(NaN);
+  return new Date(y, m - 1, d);
+}
+
+/**
  * Integrates precision hourly UV Index values between start and end decimal hours.
  * Uses exact trapezoidal integration over linear interpolation models of UV index.
  */
@@ -190,4 +211,16 @@ export function getUviCategory(uvi: number): {
   if (uvi < 8) return { label: 'High', colorClass: 'text-orange-600', bgClass: 'bg-orange-50 border-orange-100' };
   if (uvi < 11) return { label: 'Very High', colorClass: 'text-rose-600', bgClass: 'bg-rose-50 border-rose-100' };
   return { label: 'Extreme', colorClass: 'text-violet-600', bgClass: 'bg-violet-50 border-violet-100' };
+}
+
+/**
+ * Gets the hex color for a UV index risk level.
+ * Used for dynamic coloring of SVG elements based on UVI value.
+ */
+export function getRiskLevelColor(uvi: number): string {
+  if (uvi < 3) return '#10b981'; // emerald-500
+  if (uvi < 6) return '#f59e0b'; // amber-500
+  if (uvi < 8) return '#f97316'; // orange-500
+  if (uvi < 11) return '#ef4444'; // rose-500
+  return '#a78bfa'; // violet-500
 }

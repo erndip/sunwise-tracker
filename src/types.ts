@@ -24,6 +24,7 @@ export interface TanningSession {
   burnRisk: 'Low' | 'Moderate' | 'High' | 'Extreme';
   forecastUvi: number[]; // 24 hourly UVI values for that day
   notes?: string;
+  createdAt?: number; // epoch ms when logged; used for stable "newest first" ordering
 }
 
 export interface LocationGeo {
