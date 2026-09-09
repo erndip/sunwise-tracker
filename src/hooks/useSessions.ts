@@ -77,16 +77,28 @@ export function useSessions(): UseSessions {
   const sessionsRef = useRef(sessions);
   sessionsRef.current = sessions;
 
+  // Tracks the currently-synced uid so we can tell "just signed out" (clear
+  // the cloud mirror below) apart from "never signed in" (leave local alone).
+  const syncedUidRef = useRef<string | null>(null);
+
   const syncing = Boolean(db && user);
 
   useEffect(() => {
     if (!db || !user) {
+      // localStorage mirrors whichever account was last synced (see the
+      // onSnapshot handler below), so a real sign-out must wipe it — otherwise
+      // the previous user's sessions reappear as if they were local/guest data.
+      if (syncedUidRef.current) {
+        syncedUidRef.current = null;
+        saveLocal([]);
+      }
       // Signed out / Firebase unavailable: localStorage is the source of truth.
       setSyncState('local');
       setSessions(sortSessions(loadLocal()));
       return;
     }
 
+    syncedUidRef.current = user.uid;
     setSyncState('syncing');
     const colRef = collection(db, 'users', user.uid, 'sessions');
     let mergedLocalOnly = false;
