@@ -1,62 +1,3 @@
-import { FitzpatrickType, TanningSession } from '../types';
-
-export const FITZPATRICK_TYPES: FitzpatrickType[] = [
-  {
-    type: 1,
-    name: 'Type I',
-    description: 'Very fair skin, red/blond hair, freckles. Always burns, never tans.',
-    medInSed: 2.0, // 200 J/m²
-    medInJm2: 200,
-    skinColor: '#FBF0EC',
-    bgClass: 'bg-[#FBF0EC] border-pink-200 text-pink-900',
-  },
-  {
-    type: 2,
-    name: 'Type II',
-    description: 'Fair skin, blue/green eyes. Burns easily, tans minimally.',
-    medInSed: 2.5, // 250 J/m²
-    medInJm2: 250,
-    skinColor: '#F7E2D6',
-    bgClass: 'bg-[#F7E2D6] border-orange-200 text-orange-900',
-  },
-  {
-    type: 3,
-    name: 'Type III',
-    description: 'Creamy white skin, hazel/brown eyes. Burns moderately, tans gradually.',
-    medInSed: 3.5, // 350 J/m²
-    medInJm2: 350,
-    skinColor: '#ECD1BF',
-    bgClass: 'bg-[#ECD1BF] border-orange-300 text-amber-950',
-  },
-  {
-    type: 4,
-    name: 'Type IV',
-    description: 'Light brown or olive skin, dark hair. Burns minimally, tans easily.',
-    medInSed: 4.5, // 450 J/m²
-    medInJm2: 450,
-    skinColor: '#D0A98F',
-    bgClass: 'bg-[#D0A98F] border-amber-400 text-amber-950',
-  },
-  {
-    type: 5,
-    name: 'Type V',
-    description: 'Dark brown skin, dark eyes/hair. Rarely burns, tans profusely.',
-    medInSed: 6.0, // 600 J/m²
-    medInJm2: 600,
-    skinColor: '#A17255',
-    bgClass: 'bg-[#A17255] border-amber-600 text-amber-50',
-  },
-  {
-    type: 6,
-    name: 'Type VI',
-    description: 'Deeply pigmented dark brown to black skin. Never burns, rapid pigment response.',
-    medInSed: 10.0, // 1000 J/m²
-    medInJm2: 1000,
-    skinColor: '#613D27',
-    bgClass: 'bg-[#613D27] border-neutral-800 text-neutral-100',
-  },
-];
-
 /**
  * Parses "HH:MM" string to a decimal hour
  */
@@ -163,61 +104,30 @@ export function integrateUvi(hourlyVals: number[], startHour: number, endHour: n
 }
 
 /**
- * Calculates UV Radiation dose output in standard erythemal dose (SED), Joules per m²,
- * and percentage/multiple of Minimum Erythemal Dose (MED).
- * 
+ * Calculates UV radiation dose output in Joules per m² and standard
+ * erythemal dose (SED).
+ *
  * Physics Conversion:
  * 1 UV Index = 25 mW/m² = 0.025 W/m² of erythemally active UV radiation.
  * Hence, 1 UVI-hour = 0.025 W/m² * 3600s = 90 J/m²
  * 1 Standard Erythemal Dose (SED) = 100 J/m²
  * 1 UVI-hour = 0.9 SED = 90 J/m²
  */
-export function calculateDoseMetrics(uviHours: number, skinTypeNum: number) {
-  const skinType = FITZPATRICK_TYPES.find((t) => t.type === skinTypeNum) || FITZPATRICK_TYPES[1];
-  
+export function calculateDoseMetrics(uviHours: number) {
   const jm2Dose = uviHours * 90; // Joule/m²
   const sedDose = uviHours * 0.9; // Standard Erythemal Dose
-  const medRatio = jm2Dose / skinType.medInJm2; // how many MEDs
-
-  let burnRisk: TanningSession['burnRisk'] = 'Low';
-  if (medRatio >= 1.5) {
-    burnRisk = 'Extreme'; // Massive sunburn expected
-  } else if (medRatio >= 1.0) {
-    burnRisk = 'High'; // Skin starts to burn (erythema threshold reached)
-  } else if (medRatio >= 0.5) {
-    burnRisk = 'Moderate'; // Good tanning stimulus, safe limit
-  } else {
-    burnRisk = 'Low'; // Minimal risk, safe
-  }
 
   return {
     jm2Dose,
     sedDose,
-    medRatio,
-    burnRisk,
   };
 }
 
 /**
- * Categorizes UV index rating for contextual formatting.
- */
-export function getUviCategory(uvi: number): {
-  label: 'Low' | 'Moderate' | 'High' | 'Very High' | 'Extreme';
-  colorClass: string;
-  bgClass: string;
-} {
-  if (uvi < 3) return { label: 'Low', colorClass: 'text-emerald-600', bgClass: 'bg-emerald-50 border-emerald-100' };
-  if (uvi < 6) return { label: 'Moderate', colorClass: 'text-amber-600', bgClass: 'bg-amber-50 border-amber-100' };
-  if (uvi < 8) return { label: 'High', colorClass: 'text-orange-600', bgClass: 'bg-orange-50 border-orange-100' };
-  if (uvi < 11) return { label: 'Very High', colorClass: 'text-rose-600', bgClass: 'bg-rose-50 border-rose-100' };
-  return { label: 'Extreme', colorClass: 'text-violet-600', bgClass: 'bg-violet-50 border-violet-100' };
-}
-
-/**
- * Gets the hex color for a UV index risk level.
+ * Gets the hex color for a point on the UV index scale.
  * Used for dynamic coloring of SVG elements based on UVI value.
  */
-export function getRiskLevelColor(uvi: number): string {
+export function getUviColor(uvi: number): string {
   if (uvi < 3) return '#10b981'; // emerald-500
   if (uvi < 6) return '#f59e0b'; // amber-500
   if (uvi < 8) return '#f97316'; // orange-500

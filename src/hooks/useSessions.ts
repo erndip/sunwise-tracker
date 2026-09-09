@@ -12,7 +12,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
-import { TanningSession } from '../types';
+import { SessionEdit, TanningSession } from '../types';
 
 const LS_KEY = 'sunwise_sessions';
 
@@ -41,17 +41,21 @@ function sortSessions(sessions: TanningSession[]): TanningSession[] {
   return [...sessions].sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
 }
 
-// Firestore rejects nested `undefined`; keep `notes` off the document when empty.
+// Firestore rejects `undefined` values, so drop those keys entirely (an absent
+// `notes` or `burnLevel` reads back as undefined anyway). Tested against
+// undefined rather than falsiness on purpose: burnLevel 0 ("No burn") is a real
+// value that a truthiness check would silently discard.
 function toFirestore(session: TanningSession): Record<string, unknown> {
-  const { notes, ...rest } = session;
-  return notes ? { ...rest, notes } : rest;
+  return Object.fromEntries(
+    Object.entries(session).filter(([, value]) => value !== undefined),
+  );
 }
 
 interface UseSessions {
   sessions: TanningSession[];
   syncState: SyncState;
   addSession: (session: TanningSession) => void;
-  updateNotes: (id: string, notes: string) => void;
+  updateSession: (id: string, edit: SessionEdit) => void;
   deleteSession: (id: string) => void;
   clearAll: () => void;
 }
@@ -146,16 +150,21 @@ export function useSessions(): UseSessions {
     [syncing, user],
   );
 
-  const updateNotes = useCallback(
-    (id: string, rawNotes: string) => {
-      const notes = rawNotes.trim() ? rawNotes.trim() : undefined;
-      const next = sessionsRef.current.map((s) => (s.id === id ? { ...s, notes } : s));
+  const updateSession = useCallback(
+    (id: string, edit: SessionEdit) => {
+      const notes = edit.notes.trim() ? edit.notes.trim() : undefined;
+      const burnLevel = edit.burnLevel;
+      const next = sessionsRef.current.map((s) =>
+        s.id === id ? { ...s, notes, burnLevel } : s,
+      );
       setSessions(next); // optimistic
 
       if (syncing && db && user) {
+        // Also backfills burnLevel onto sessions logged before it existed.
         updateDoc(doc(db, 'users', user.uid, 'sessions', id), {
           notes: notes ?? deleteField(),
-        }).catch((err) => console.error('Failed to update notes in cloud', err));
+          burnLevel,
+        }).catch((err) => console.error('Failed to update session in cloud', err));
       } else {
         saveLocal(next);
       }
@@ -196,5 +205,5 @@ export function useSessions(): UseSessions {
     }
   }, [syncing, user]);
 
-  return { sessions, syncState, addSession, updateNotes, deleteSession, clearAll };
+  return { sessions, syncState, addSession, updateSession, deleteSession, clearAll };
 }

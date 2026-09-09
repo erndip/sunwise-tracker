@@ -3,27 +3,23 @@ import {
   Sun,
   MapPin,
   Clock,
-  Calendar,
   AlertCircle,
-  HelpCircle,
   Loader2,
   Navigation,
   Sparkles,
-  Info,
-  CalendarDays,
-  Flame,
   PlusCircle,
+  ClipboardList,
   Cloud,
   CloudOff,
 } from 'lucide-react';
-import { integrateUvi, calculateDoseMetrics, parseTimeToDecimal, FITZPATRICK_TYPES, timeToMinutes, minutesToTime, getLocalDateISO } from './utils/uvCalculator';
+import { integrateUvi, calculateDoseMetrics, parseTimeToDecimal, timeToMinutes, minutesToTime, getLocalDateISO } from './utils/uvCalculator';
 import { UvChart } from './components/UvChart';
-import { FitzpatrickSelector } from './components/FitzpatrickSelector';
 import { SessionLog } from './components/SessionLog';
 import { AuthButton } from './components/AuthButton';
 import { useAuth } from './contexts/AuthContext';
 import { useSessions } from './hooks/useSessions';
-import { TanningSession, LocationGeo } from './types';
+import { BurnLevelSlider } from './components/BurnLevelSlider';
+import { TanningSession, LocationGeo, BurnLevel } from './types';
 
 // Default Demo Location on first render: Madison WI, USA
 const DEFAULT_LOCATION: LocationGeo = {
@@ -56,8 +52,10 @@ export default function App() {
   const [currentDate, setCurrentDate] = useState(() => getLocalDateISO());
   const [startTime, setStartTime] = useState('11:00');
   const [endTime, setEndTime] = useState('13:00');
-  const [skinType, setSkinType] = useState<number>(3); // Default to Fitzpatrick Type III
   const [sessionNotes, setSessionNotes] = useState('');
+  // Burns usually appear hours after the fact, so this starts at 0 and is
+  // expected to be revised later from the Exposure Log.
+  const [burnLevel, setBurnLevel] = useState<BurnLevel>(0);
 
   // Weather API states
   const [forecastUvi, setForecastUvi] = useState<number[]>([]);
@@ -68,24 +66,7 @@ export default function App() {
   // Auth + persistence. Sessions are offline-first (localStorage) and sync to
   // the signed-in user's Firestore account when available — see useSessions.
   const { user, isConfigured } = useAuth();
-  const { sessions, syncState, addSession, updateNotes, deleteSession, clearAll } = useSessions();
-
-  // Load skin type preference from localStorage on mount
-  useEffect(() => {
-    const savedSkin = localStorage.getItem('sunwise_skintype');
-    if (savedSkin) {
-      const parsedSkin = parseInt(savedSkin, 10);
-      if (!isNaN(parsedSkin) && parsedSkin >= 1 && parsedSkin <= 6) {
-        setSkinType(parsedSkin);
-      }
-    }
-  }, []);
-
-  // Save skin type preference whenever changed
-  const handleSkinTypeChange = (newType: number) => {
-    setSkinType(newType);
-    localStorage.setItem('sunwise_skintype', String(newType));
-  };
+  const { sessions, syncState, addSession, updateSession, deleteSession, clearAll } = useSessions();
 
   // Fetch UV forecast from Open-Meteo
   useEffect(() => {
@@ -281,18 +262,11 @@ export default function App() {
   // UV Hours Integral calculation
   const uviHoursIntegral = integrateUvi(forecastUvi, startHourNum, endHourNum);
   
-  // Detailed radiation metrics (SED, J/m², MED multiplier, burn risk)
-  const { jm2Dose, sedDose, medRatio, burnRisk } = calculateDoseMetrics(uviHoursIntegral, skinType);
+  // Radiation dose metrics (SED, J/m²)
+  const { jm2Dose, sedDose } = calculateDoseMetrics(uviHoursIntegral);
 
-  // Dynamic Skin Info Details
-  const activeSkinType = FITZPATRICK_TYPES.find((t) => t.type === skinType) || FITZPATRICK_TYPES[2];
-
-  // Calculate Peak Burn Rate insights
-  const peakUvi = Math.max(0.1, ...forecastUvi);
-  // Rate in J/m² per minute = 1.5 * peakUvi.
-  // Minutes to reach 1 MED at peak sun = medInJm2 / (1.5 * peakUvi)
-  const peakRateJm2Min = 1.5 * peakUvi;
-  const minutesToBurnAtPeak = Math.max(2, activeSkinType.medInJm2 / peakRateJm2Min);
+  // Peak intensity of the day, for context alongside the integrated dose
+  const peakUvi = Math.max(0, ...forecastUvi);
 
   // Save session action
   const handleSaveSession = () => {
@@ -304,18 +278,17 @@ export default function App() {
       date: currentDate,
       startTime,
       endTime,
-      skinType,
       uviIntegral: uviHoursIntegral,
       sedDose,
       jm2Dose,
-      medRatio,
-      burnRisk,
       forecastUvi,
+      burnLevel,
       notes: sessionNotes.trim() ? sessionNotes.trim() : undefined,
     };
 
     addSession(newSession); // persists locally and to the cloud when signed in
     setSessionNotes(''); // reset pre-log notes
+    setBurnLevel(0);
     setActiveTab('log'); // bounce to log tab so they immediately see their added card
   };
 
@@ -431,7 +404,7 @@ export default function App() {
                   <div className="flex items-center space-x-2">
                     <MapPin className="w-5 h-5 text-amber-500" />
                     <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm">
-                      1. Environment Location & Date
+                      Environment Location & Date
                     </h3>
                   </div>
                   {loading && <Loader2 className="w-4 h-4 text-amber-500 animate-spin" />}
@@ -564,7 +537,7 @@ export default function App() {
                 <div className="flex items-center space-x-2 border-b border-slate-100 dark:border-slate-800/80 pb-3">
                   <Clock className="w-5 h-5 text-amber-500" />
                   <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm">
-                    2. Sunbathing Exposure window
+                    Sunbathing Exposure window
                   </h3>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -583,7 +556,7 @@ export default function App() {
                         type="range"
                         min="0"
                         max="1435"
-                        step="10"
+                        step="5"
                         value={timeToMinutes(startTime)}
                         onChange={(e) => setStartTime(minutesToTime(parseInt(e.target.value, 10)))}
                         className="w-full accent-amber-500 cursor-pointer h-1.5 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none outline-none"
@@ -610,7 +583,7 @@ export default function App() {
                         type="range"
                         min="0"
                         max="1435"
-                        step="10"
+                        step="5"
                         value={timeToMinutes(endTime)}
                         onChange={(e) => setEndTime(minutesToTime(parseInt(e.target.value, 10)))}
                         className="w-full accent-amber-500 cursor-pointer h-1.5 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none outline-none"
@@ -647,16 +620,15 @@ export default function App() {
                   startTime={startTime}
                   endTime={endTime}
                   locationName={selectedLocation.name}
+                  onWindowChange={(s, e) => {
+                    setStartTime(s);
+                    setEndTime(e);
+                  }}
                 />
               </div>
 
-              {/* Fitzpatrick skin selector */}
-              <div className="lg:col-span-5 lg:col-start-1 lg:row-start-3 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-sm">
-                <FitzpatrickSelector selectedType={skinType} onChange={handleSkinTypeChange} />
-              </div>
-
               {/* Advanced radiation calculation outputs card */}
-              <div className="lg:col-span-7 lg:col-start-6 lg:row-start-2 lg:row-span-2 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 sm:p-6 shadow-sm space-y-6">
+              <div className="lg:col-span-7 lg:col-start-6 lg:row-start-2 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 sm:p-6 shadow-sm space-y-6">
                 
                 {/* Section title & badge */}
                 <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800/80 pb-4">
@@ -666,12 +638,7 @@ export default function App() {
                       Dose Integral Calculations
                     </h3>
                   </div>
-                  <div className="flex items-center space-x-1.5 font-mono text-[10px] text-slate-400">
-                    <span>Physics Engine</span>
-                    <span className="bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded uppercase font-bold text-slate-600 dark:text-slate-300">
-                      v1.4-active
-                    </span>
-                  </div>
+                  
                 </div>
 
                 {/* Primary Metric: UVI Hours Exposure */}
@@ -693,7 +660,7 @@ export default function App() {
                     </p>
                   </div>
 
-                  {/* Biological damage metrics list (SED, J/m², MED ratio) */}
+                  {/* Radiation dose metrics list (J/m², SED, peak UVI) */}
                   <div className="space-y-4">
                     
                     {/* Erythemal Dose standard metric J/m2 */}
@@ -732,134 +699,106 @@ export default function App() {
                       </div>
                     </div>
 
-                    {/* MED Threshold representation (how much of sunburn limit did they receive?) */}
+                    {/* Peak intensity of the forecast day, for context */}
                     <div className="flex justify-between items-center border-t border-slate-100 dark:border-slate-800/85 pt-3.5">
                       <div className="space-y-0.5">
                         <div className="text-xs font-semibold text-slate-800 dark:text-slate-100">
-                          Sunburn Threshold Ratio (MED)
+                          Peak UV Index
                         </div>
                         <p className="text-[9px] text-slate-400 font-mono">
-                          Fraction of your skin sunburn limit
+                          Daily maximum, typically at solar noon
                         </p>
                       </div>
                       <div className="text-right font-mono">
-                        <span className={`text-sm font-bold ${
-                          medRatio >= 1.0 ? 'text-rose-500' : medRatio >= 0.5 ? 'text-amber-500' : 'text-emerald-500'
-                        }`}>
-                          {Math.round(medRatio * 100)}%
+                        <span className="text-sm font-bold text-slate-800 dark:text-slate-200">
+                          {peakUvi.toFixed(1)}
                         </span>{' '}
-                        <span className="text-[10px] text-slate-400 font-normal">({medRatio.toFixed(2)} MED)</span>
+                        <span className="text-xs text-slate-400 font-normal">UVI</span>
                       </div>
                     </div>
 
                   </div>
                 </div>
 
-                {/* Progress bar visual indicating percentage of sunburn limit loaded */}
-                <div className="space-y-1.5 pt-2">
-                  <div className="flex justify-between text-[11px] text-slate-500">
-                    <span className="font-semibold text-slate-600 dark:text-slate-300">
-                      Skin Erythema Threshold Load (1.0 MED)
-                    </span>
-                    <span className="font-mono">
-                      {medRatio.toFixed(2)} / 1.0 MED
-                    </span>
+              </div>
+
+              {/* Session logging — kept in its own panel so the notes field and
+                  the Log action stay visible instead of trailing off the bottom
+                  of the dose readouts. */}
+              <div className="lg:col-span-12 lg:col-start-1 lg:row-start-3 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 sm:p-6 shadow-sm space-y-5">
+
+                {/* Section title & the window this will record */}
+                <div className="flex items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800/80 pb-3">
+                  <div className="flex items-center space-x-2">
+                    <ClipboardList className="w-5 h-5 text-amber-500" />
+                    <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm">
+                      Log This Session
+                    </h3>
                   </div>
-                  <div className="w-full bg-slate-100 dark:bg-slate-950 rounded-full h-3.5 p-0.5 border border-slate-200/50 dark:border-slate-900 overflow-hidden">
-                    <div
-                      style={{ width: `${Math.min(100, medRatio * 100)}%` }}
-                      className={`h-full rounded-full transition-all duration-300 ${
-                        medRatio >= 1.0
-                          ? 'bg-rose-500 shadow-lg shadow-rose-500/20'
-                          : medRatio >= 0.5
-                          ? 'bg-amber-500 border-amber-400'
-                          : 'bg-emerald-500 border-emerald-400'
-                      }`}
+                  <span className="hidden sm:block text-[10px] font-mono text-slate-400 text-right">
+                    {selectedLocation.name} · {currentDate} · {startTime}–{endTime}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-stretch">
+
+                  {/* Optional Pre-logging Notes */}
+                  <div className="bg-slate-50 dark:bg-slate-950/40 rounded-2xl p-4 border border-slate-200/65 dark:border-slate-800/80 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <label htmlFor="session-pre-notes" className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5 cursor-pointer">
+                        <span>Add Session Notes (Before Logging)</span>
+                      </label>
+                      <span className="text-[10px] text-slate-400 font-mono italic">Optional</span>
+                    </div>
+                    <textarea
+                      id="session-pre-notes"
+                      value={sessionNotes}
+                      onChange={(e) => setSessionNotes(e.target.value)}
+                      placeholder="Enter notes (e.g., Applied SPF 30 sunscreen, outdoor lounge chair, intermittent cloud cover...)"
+                      rows={3}
+                      className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs focus:ring-2 focus:ring-amber-500/10 focus:border-amber-500 outline-none text-slate-800 dark:text-slate-100 placeholder:text-slate-400 resize-y"
                     />
                   </div>
-                </div>
 
-                {/* Risk and Action Warning Box */}
-                <div className={`p-4 rounded-2xl border flex items-start space-x-3.5 ${
-                  medRatio >= 1.0
-                    ? 'bg-rose-50/50 border-rose-200 text-rose-900 dark:bg-rose-950/20 dark:border-rose-900/60 dark:text-rose-300'
-                    : medRatio >= 0.5
-                    ? 'bg-amber-50 border-amber-200 text-amber-900 dark:bg-amber-950/20 dark:border-amber-900/60 dark:text-amber-300'
-                    : 'bg-emerald-50 border-emerald-200 text-emerald-900 dark:bg-emerald-950/20 dark:border-emerald-900/60 dark:text-emerald-300'
-                }`}>
-                  <div className={`p-2 rounded-xl shrink-0 ${
-                    medRatio >= 1.0 ? 'bg-rose-100 dark:bg-rose-950' : medRatio >= 0.5 ? 'bg-amber-100 dark:bg-amber-950' : 'bg-emerald-100 dark:bg-emerald-950'
-                  }`}>
-                    <Flame className={`w-5 h-5 ${
-                      medRatio >= 1.0 ? 'text-rose-500' : medRatio >= 0.5 ? 'text-amber-500' : 'text-emerald-500'
-                    }`} />
+                  {/* Burn outcome. Recorded here for completeness, but the
+                      real answer usually arrives hours later — hence the hint
+                      pointing at the log's Edit control. */}
+                  <div className="bg-slate-50 dark:bg-slate-950/40 rounded-2xl p-4 border border-slate-200/65 dark:border-slate-800/80">
+                    <BurnLevelSlider
+                      id="session-burn-level"
+                      value={burnLevel}
+                      onChange={setBurnLevel}
+                      hint="Sunburn peaks 6–24h later — leave this at “No burn” and update it from the Exposure Log once you know."
+                    />
                   </div>
-                  <div className="space-y-1">
-                    <h4 className="text-xs font-bold uppercase tracking-wider">
-                      Biomedical Exposure Outcome: Risk Level &apos;{burnRisk}&apos;
-                    </h4>
-                    <p className="text-xs leading-relaxed opacity-90">
-                      {medRatio >= 1.5 ? (
-                        <span>
-                          <strong>Danger:</strong> Massive erythema (severe sunburn) is predicted. Your dose ({sedDose.toFixed(1)} SED) far exceeds your Type {skinType} safe capacity of {activeSkinType.medInSed} SED. Limit exposure instantly, use high SPF sunscreen, or move inside!
-                        </span>
-                      ) : medRatio >= 1.0 ? (
-                        <span>
-                          <strong>Sunburn Warning:</strong> Your dose exceeds {activeSkinType.medInSed} SED. Skin redness, cell inflammation, and peeling will likely occur. Move to shade.
-                        </span>
-                      ) : medRatio >= 0.5 ? (
-                        <span>
-                          <strong>Optimal Tanning Dose:</strong> Excellent UV stimulus for melanin activation (tanning) without inducing cellular sunburn. Ensure you flip occasionally to distribute this radiation evenly.
-                        </span>
-                      ) : (
-                        <span>
-                          <strong>Safe Exposure Range:</strong> Mild solar absorption. Safe exposure window. Excellent for vitamin D3 production, very low risk of skin redness.
-                        </span>
+
+                  {/* Log action */}
+                  <div className="bg-slate-50 dark:bg-slate-950 rounded-2xl p-4.5 border border-slate-100 dark:border-slate-800/80 flex flex-col justify-between gap-4 text-xs">
+                    <p className="text-slate-500 dark:text-slate-400 leading-relaxed">
+                      Save this window to your exposure log to keep a running record of the
+                      doses you have integrated.
+                    </p>
+                    <div className="space-y-2">
+                      {/* The invalid-window warning lives in panel 2, which is now
+                          far from this button — restate why it is disabled. */}
+                      {startHourNum >= endHourNum && (
+                        <p className="text-[10px] text-rose-500 leading-relaxed">
+                          Set an end time later than the start time to log this session.
+                        </p>
                       )}
-                    </p>
+                      <button
+                        type="button"
+                        onClick={handleSaveSession}
+                        disabled={startHourNum >= endHourNum}
+                        className="w-full shrink-0 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold p-3 px-5 rounded-xl cursor-pointer shadow-md shadow-amber-500/10 flex items-center justify-center gap-2 transition-all outline-none"
+                      >
+                        <PlusCircle className="w-4 h-4 shrink-0" />
+                        <span>Log Session</span>
+                      </button>
+                    </div>
                   </div>
-                </div>
 
-                {/* Optional Pre-logging Notes */}
-                <div className="bg-slate-50 dark:bg-slate-950/40 rounded-2xl p-4 border border-slate-200/65 dark:border-slate-800/80 space-y-2.5">
-                  <div className="flex items-center justify-between">
-                    <label htmlFor="session-pre-notes" className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5 cursor-pointer">
-                      <span>Add Session Notes (Before Logging)</span>
-                    </label>
-                    <span className="text-[10px] text-slate-400 font-mono italic">Optional</span>
-                  </div>
-                  <textarea
-                    id="session-pre-notes"
-                    value={sessionNotes}
-                    onChange={(e) => setSessionNotes(e.target.value)}
-                    placeholder="Enter notes (e.g., Applied SPF 30 sunscreen, outdoor lounge chair, intermittent cloud cover...)"
-                    rows={2}
-                    className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 text-xs focus:ring-2 focus:ring-amber-500/10 focus:border-amber-500 outline-none text-slate-800 dark:text-slate-100 placeholder:text-slate-400"
-                  />
                 </div>
-
-                {/* Dermatology Sun Advice widget */}
-                <div className="bg-slate-50 dark:bg-slate-950 rounded-2xl p-4.5 border border-slate-100 dark:border-slate-800/80 flex flex-col md:flex-row md:items-center justify-between gap-4 text-xs">
-                  <div className="space-y-1">
-                    <h4 className="font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
-                      <Info className="w-4 h-4 text-amber-500" />
-                      Dermatological Sun Warning Peak Advice
-                    </h4>
-                    <p className="text-slate-500 dark:text-slate-400 leading-relaxed max-w-lg">
-                      Peak UV index today is <strong className="text-slate-700 dark:text-slate-200">{peakUvi.toFixed(1)} UVI</strong> around solar noon. For your {activeSkinType.name} skin, the calculated safe direct midday peak threshold is <strong className="text-slate-700 dark:text-slate-200">{Math.round(minutesToBurnAtPeak)} minutes</strong> before cell sunburn.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleSaveSession}
-                    disabled={startHourNum >= endHourNum}
-                    className="shrink-0 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white font-bold p-3 px-5 rounded-xl cursor-pointer shadow-md shadow-amber-500/10 flex items-center justify-center gap-2 transition-all outline-none"
-                  >
-                    <PlusCircle className="w-4 h-4 shrink-0" />
-                    <span>Log Session</span>
-                  </button>
-                </div>
-
               </div>
 
           </div>
@@ -889,7 +828,7 @@ export default function App() {
               sessions={sessions}
               onDelete={deleteSession}
               onClearAll={handleClearAllSessions}
-              onUpdateNotes={updateNotes}
+              onUpdateSession={updateSession}
             />
           </div>
         )}
@@ -903,7 +842,7 @@ export default function App() {
                 The Science of UV Radiation & Integration Calculus
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
-                How we construct physical, mathematically rigorous integrals to compute cellular tanning dosages.
+                How we construct physical, mathematically rigorous integrals to compute total UV exposure dosages.
               </p>
             </div>
 
@@ -914,7 +853,7 @@ export default function App() {
                   What is the UV Index?
                 </h3>
                 <p>
-                  The Ultraviolet Index (UVI) is an international scientific standard scale representing the intensity of erythemal (sunburn-producing) ultraviolet radiation at the Earth's surface. A value of 0 indicates zero radiation (nighttime), while values over 11 represent extreme risks where fair-skinned individuals can suffer burns in under 10 minutes.
+                  The Ultraviolet Index (UVI) is an international scientific standard scale representing the intensity of erythemally weighted ultraviolet radiation at the Earth's surface. A value of 0 indicates zero radiation (nighttime), while values over 11 represent the most intense solar conditions measured at ground level.
                 </p>
                 <div className="bg-slate-50 dark:bg-slate-950 p-4.5 rounded-2xl font-mono text-xs text-slate-500 leading-normal border border-slate-100 dark:border-slate-900">
                   <span className="font-bold text-slate-800 dark:text-amber-300 uppercase block mb-1.5">[Physical Definition]</span>
@@ -942,49 +881,14 @@ export default function App() {
 
               <section className="space-y-2">
                 <h3 className="font-bold text-slate-900 dark:text-slate-100 text-base">
-                  What are SED and MED?
+                  What is a Standard Erythemal Dose?
                 </h3>
                 <p>
-                  Standard physical metrics represent the biological effects of solar radiation on skin cells:
+                  The SED is the standard physical unit for a quantity of received solar UV energy. Exactly 1 SED = 100 J/m² of erythemally weighted ultraviolet radiation, and it is completely independent of individual characteristics — it measures the radiation itself, not any particular response to it.
                 </p>
-                <ul className="list-disc list-inside space-y-1.5 pl-2">
-                  <li>
-                    <strong>SED (Standard Erythemal Dose):</strong> A normalized unit of solar UV exposure. Exactly 1 SED = 100 J/m² of erythemally weighted ultraviolet radiation. It is completely independent of individual skin characteristics.
-                  </li>
-                  <li>
-                    <strong>MED (Minimum Erythemal Dose):</strong> The amount of ultraviolet energy that produces a mild, barely perceptible sunburn on an individual's skin. Crucially, your MED depends entirely on your Fitzpatrick skin type.
-                  </li>
-                </ul>
-              </section>
-
-              <section className="space-y-2 border-t border-slate-100 dark:border-slate-800/80 pt-5">
-                <h3 className="font-bold text-slate-900 dark:text-slate-100 text-base">
-                  Fitzpatrick Skin Classification Breakdown
-                </h3>
-                <p className="text-xs">
-                  Developed in 1975 by dermatologist Thomas B. Fitzpatrick, this classification divides human skin into six standard types based on baseline pigment and responses to direct solar exposure:
-                </p>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
-                  {FITZPATRICK_TYPES.map((ft) => (
-                    <div
-                      key={ft.type}
-                      className="p-3.5 border border-slate-100 dark:border-slate-800 rounded-xl flex items-center space-x-3 bg-slate-50/40 dark:bg-slate-950/20"
-                    >
-                      <span
-                        style={{ backgroundColor: ft.skinColor }}
-                        className="w-8 h-8 rounded-full border border-slate-300 dark:border-slate-700 shadow-sm shrink-0"
-                      />
-                      <div>
-                        <div className="font-bold text-xs text-slate-800 dark:text-slate-200">
-                          {ft.name} — Sunburn threshold: {ft.medInSed.toFixed(1)} SED
-                        </div>
-                        <p className="text-[10px] text-slate-500 leading-tight mt-0.5">
-                          {ft.description}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
+                <div className="bg-slate-50 dark:bg-slate-950 p-4.5 rounded-2xl font-mono text-xs text-slate-500 leading-normal border border-slate-100 dark:border-slate-900">
+                  <span className="font-bold text-slate-800 dark:text-amber-300 uppercase block mb-1.5">[Unit Conversions]</span>
+                  1 UVI-hour = 90 J/m² = 0.9 SED &nbsp;·&nbsp; 1 SED = 100 J/m²
                 </div>
               </section>
 
