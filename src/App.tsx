@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import {
   Sun,
   MapPin,
-  Clock,
   AlertCircle,
   Loader2,
   Navigation,
@@ -12,7 +11,7 @@ import {
   Cloud,
   CloudOff,
 } from 'lucide-react';
-import { integrateUvi, calculateDoseMetrics, parseTimeToDecimal, timeToMinutes, minutesToTime, getLocalDateISO } from './utils/uvCalculator';
+import { integrateUvi, calculateDoseMetrics, parseTimeToDecimal, getLocalDateISO } from './utils/uvCalculator';
 import { UvChart } from './components/UvChart';
 import { SessionLog } from './components/SessionLog';
 import { AuthButton } from './components/AuthButton';
@@ -532,89 +531,10 @@ export default function App() {
 
               </div>
 
-              {/* Time Interval window selector */}
-              <div className="lg:col-span-5 lg:col-start-1 lg:row-start-2 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
-                <div className="flex items-center space-x-2 border-b border-slate-100 dark:border-slate-800/80 pb-3">
-                  <Clock className="w-5 h-5 text-amber-500" />
-                  <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm">
-                    Sunbathing Exposure window
-                  </h3>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                      Start Time
-                    </label>
-                    <input
-                      type="time"
-                      value={startTime}
-                      onChange={(e) => setStartTime(e.target.value)}
-                      className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-amber-500/10 focus:border-amber-500 text-slate-800 dark:text-slate-100 outline-none cursor-pointer"
-                    />
-                    <div className="pt-2 px-0.5 space-y-1">
-                      <input
-                        type="range"
-                        min="0"
-                        max="1435"
-                        step="5"
-                        value={timeToMinutes(startTime)}
-                        onChange={(e) => setStartTime(minutesToTime(parseInt(e.target.value, 10)))}
-                        className="w-full accent-amber-500 cursor-pointer h-1.5 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none outline-none"
-                      />
-                      <div className="flex justify-between text-[9px] font-mono text-slate-400">
-                        <span>00:00</span>
-                        <span className="font-bold text-amber-500">{startTime}</span>
-                        <span>23:55</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                      End Time
-                    </label>
-                    <input
-                      type="time"
-                      value={endTime}
-                      onChange={(e) => setEndTime(e.target.value)}
-                      className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-amber-500/10 focus:border-amber-500 text-slate-800 dark:text-slate-100 outline-none cursor-pointer"
-                    />
-                    <div className="pt-2 px-0.5 space-y-1">
-                      <input
-                        type="range"
-                        min="0"
-                        max="1435"
-                        step="5"
-                        value={timeToMinutes(endTime)}
-                        onChange={(e) => setEndTime(minutesToTime(parseInt(e.target.value, 10)))}
-                        className="w-full accent-amber-500 cursor-pointer h-1.5 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none outline-none"
-                      />
-                      <div className="flex justify-between text-[9px] font-mono text-slate-400">
-                        <span>00:00</span>
-                        <span className="font-bold text-amber-500">{endTime}</span>
-                        <span>23:55</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Exposure length insight */}
-                {startHourNum >= endHourNum ? (
-                  <div className="p-3 bg-rose-50 border border-rose-100 rounded-xl flex items-center space-x-2 text-xs text-rose-800 dark:bg-rose-950/20 dark:border-rose-900/40 dark:text-rose-400">
-                    <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
-                    <span>EndTime must strictly be later than your StartTime parameters.</span>
-                  </div>
-                ) : (
-                  <div className="p-3 bg-amber-500/5 border border-amber-500/10 rounded-xl flex items-center justify-between text-xs text-slate-600 dark:text-slate-400">
-                    <span>Exposure Length:</span>
-                    <span className="font-mono font-bold text-slate-800 dark:text-slate-100">
-                      {Math.floor(endHourNum - startHourNum)}h {Math.round(((endHourNum - startHourNum) % 1) * 60)}m
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              {/* Dynamic SVGCurve integrated highlights chart — surfaced near the top on mobile */}
-              <div className="lg:col-span-7 lg:col-start-6 lg:row-start-1 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-2.5 sm:p-5 shadow-sm">
+              {/* Dynamic SVGCurve integrated highlights chart — surfaced near the top on mobile.
+                  The exposure window is edited on the chart itself (drag the markers or the
+                  shaded band); the inputs beneath it are the same window to the minute. */}
+              <div className="lg:col-span-7 lg:col-start-6 lg:row-start-1 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-2.5 sm:p-5 shadow-sm space-y-4">
                 <UvChart
                   forecastUvi={forecastUvi}
                   startTime={startTime}
@@ -625,10 +545,56 @@ export default function App() {
                     setEndTime(e);
                   }}
                 />
+
+                {/* Exposure window readout: start, end, and resulting length inline */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
+                  <div className="space-y-1.5">
+                    <label htmlFor="exposure-start" className="block text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                      Start Time
+                    </label>
+                    <input
+                      id="exposure-start"
+                      type="time"
+                      value={startTime}
+                      onChange={(e) => setStartTime(e.target.value)}
+                      className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-amber-500/10 focus:border-amber-500 text-slate-800 dark:text-slate-100 outline-none cursor-pointer"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label htmlFor="exposure-end" className="block text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                      End Time
+                    </label>
+                    <input
+                      id="exposure-end"
+                      type="time"
+                      value={endTime}
+                      onChange={(e) => setEndTime(e.target.value)}
+                      className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-amber-500/10 focus:border-amber-500 text-slate-800 dark:text-slate-100 outline-none cursor-pointer"
+                    />
+                  </div>
+
+                  {/* Exposure length insight — spans the row on mobile, where the
+                      two time pickers already fill a line on their own. */}
+                  <div className="col-span-2 sm:col-span-1 space-y-1.5">
+                    <span className="block text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                      Exposure Length
+                    </span>
+                    {startHourNum >= endHourNum ? (
+                      <div className="bg-rose-50 border border-rose-100 rounded-xl px-3 py-2 flex items-center gap-2 text-xs text-rose-800 dark:bg-rose-950/20 dark:border-rose-900/40 dark:text-rose-400">
+                        <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
+                        <span className="leading-tight">End time must be later than start time.</span>
+                      </div>
+                    ) : (
+                      <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl px-3 py-2 text-sm font-mono font-bold text-slate-800 dark:text-slate-100">
+                        {Math.floor(endHourNum - startHourNum)}h {Math.round(((endHourNum - startHourNum) % 1) * 60)}m
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
 
               {/* Advanced radiation calculation outputs card */}
-              <div className="lg:col-span-7 lg:col-start-6 lg:row-start-2 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 sm:p-6 shadow-sm space-y-6">
+              <div className="lg:col-span-12 lg:col-start-1 lg:row-start-2 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 sm:p-6 shadow-sm space-y-6">
                 
                 {/* Section title & badge */}
                 <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800/80 pb-4">
@@ -641,8 +607,10 @@ export default function App() {
                   
                 </div>
 
-                {/* Primary Metric: UVI Hours Exposure */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+                {/* Primary Metric: UVI Hours Exposure. Now that this card spans the
+                    full width, the integral display keeps a third and the metric
+                    rows take the rest rather than both stretching to half. */}
+                <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] gap-6 items-center">
                   
                   {/* Huge Circular Indicator style display */}
                   <div className="bg-gradient-to-br from-amber-50 to-orange-50/20 dark:from-slate-950 dark:to-slate-900 border border-amber-200/40 dark:border-slate-800/80 p-5 rounded-2xl text-center shadow-inner space-y-1">
@@ -768,7 +736,7 @@ export default function App() {
                       id="session-burn-level"
                       value={burnLevel}
                       onChange={setBurnLevel}
-                      hint="Sunburn peaks 6–24h later — leave this at “No burn” and update it from the Exposure Log once you know."
+                      hint="You can always change this later."
                     />
                   </div>
 
@@ -779,8 +747,8 @@ export default function App() {
                       doses you have integrated.
                     </p>
                     <div className="space-y-2">
-                      {/* The invalid-window warning lives in panel 2, which is now
-                          far from this button — restate why it is disabled. */}
+                      {/* The invalid-window warning lives under the chart, which is
+                          now far from this button — restate why it is disabled. */}
                       {startHourNum >= endHourNum && (
                         <p className="text-[10px] text-rose-500 leading-relaxed">
                           Set an end time later than the start time to log this session.

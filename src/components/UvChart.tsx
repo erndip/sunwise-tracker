@@ -13,8 +13,8 @@ interface UvChartProps {
 /** Which part of the exposure window a pointer/keyboard gesture is moving. */
 type DragMode = 'start' | 'end' | 'band';
 
-// Drag quantisation. SNAP_MIN matches the step of the exposure-window sliders in
-// App so the chart and the panel land on exactly the same set of times.
+// Drag quantisation. Dragging lands on 5-minute steps; the time inputs beneath
+// the chart stay free to name any minute of the day.
 const SNAP_MIN = 5;
 const MIN_WINDOW_MIN = 5;
 const MAX_MIN = 1435; // 23:55, same ceiling minutesToTime() enforces
@@ -112,10 +112,29 @@ export const UvChart: React.FC<UvChartProps> = ({
     .map((p) => `${p.x},${p.y}`)
     .join(' ');
 
-  // When the Start/End markers sit close together their 50px-wide labels overlap,
-  // so lift the End label above the Start label to keep both legible.
-  const labelsClose = startHour < endHour && getX(endHour) - getX(startHour) < 60;
-  const endLabelLift = labelsClose ? 16 : 0;
+  // Marker label geometry. The box has to fit "Start: 00:00" at the font size used
+  // below: a mono glyph advances ~0.6em, so 12 chars need ~79px at 11px — the width
+  // here leaves a few px of padding inside the border rather than clipping the text.
+  const labelWidth = 88;
+  const labelHeight = 20;
+  const labelGap = 11; // clearance between the marker dot and the label's lower edge
+
+  // When the Start/End markers sit close together horizontally, their labels
+  // can still collide vertically — but only if their UV indices put the two
+  // dots close together too. The marker at the higher UV index already sits
+  // nearer the top of the chart, so it's the one that gets lifted clear; how
+  // far depends on how much of a vertical gap the dots already give for free —
+  // a 4px buffer at the same UV index, shrinking to 0 once the dots' own
+  // separation is enough on its own to keep the label boxes apart.
+  const labelsClose = startHour < endHour && getX(endHour) - getX(startHour) < labelWidth;
+  const startDotY = getY(getUviAt(startHour));
+  const endDotY = getY(getUviAt(endHour));
+  const maxLabelLift = labelsClose
+    ? Math.max(0, labelHeight + 4 - Math.abs(startDotY - endDotY))
+    : 0;
+  const startHigher = startDotY <= endDotY; // smaller y = higher UV = higher on the chart
+  const startLabelLift = startHigher ? maxLabelLift : 0;
+  const endLabelLift = startHigher ? 0 : maxLabelLift;
 
   // --- Drag plumbing -------------------------------------------------------
 
@@ -246,7 +265,7 @@ export const UvChart: React.FC<UvChartProps> = ({
     time: string;
     lift: number;
   }[] = [
-    { mode: 'start', hour: startHour, label: 'Start', time: startTime, lift: 0 },
+    { mode: 'start', hour: startHour, label: 'Start', time: startTime, lift: startLabelLift },
     { mode: 'end', hour: endHour, label: 'End', time: endTime, lift: endLabelLift },
   ];
 
@@ -428,6 +447,13 @@ export const UvChart: React.FC<UvChartProps> = ({
                 mode === 'end' ? timeToMinutes(startTime) + MIN_WINDOW_MIN : 0;
               const ariaMax =
                 mode === 'end' ? MAX_MIN : timeToMinutes(endTime) - MIN_WINDOW_MIN;
+              // Keep the label inside the chart when the marker rides the top of the
+              // curve. The un-lifted label reserves the active lift as headroom, so
+              // the two stay that far apart even once both have been clamped.
+              const labelTop = Math.max(
+                2 + maxLabelLift - lift,
+                y - labelGap - labelHeight - lift
+              );
 
               return (
                 <g
@@ -477,11 +503,11 @@ export const UvChart: React.FC<UvChartProps> = ({
                     className="pointer-events-none"
                   />
                   <rect
-                    x={x - 25}
-                    y={y - 25 - lift}
-                    width="50"
-                    height="14"
-                    rx="3"
+                    x={x - labelWidth / 2}
+                    y={labelTop}
+                    width={labelWidth}
+                    height={labelHeight}
+                    rx="4"
                     fill="#1e293b"
                     stroke="#fbbf24"
                     strokeWidth="1"
@@ -489,20 +515,20 @@ export const UvChart: React.FC<UvChartProps> = ({
                   />
                   <text
                     x={x}
-                    y={y - 15 - lift}
+                    y={labelTop + 14}
                     textAnchor="middle"
-                    className="fill-amber-400 text-[8px] font-mono font-bold pointer-events-none"
+                    className="fill-amber-400 text-[11px] font-mono font-bold pointer-events-none"
                   >
                     {label}: {time}
                   </text>
-                  {/* Invisible grab target spanning the full dashed line, so the
-                      whole marker is draggable rather than just the 4px dot. */}
+                  {/* Invisible grab target spanning the dashed line and its label, so
+                      the whole marker is draggable rather than just the 4px dot. */}
                   {interactive && (
                     <rect
                       x={x - grabWidth / 2}
-                      y={Math.min(y, getY(0)) - 26 - lift}
+                      y={Math.min(y, getY(0) - 1, labelTop - 1)}
                       width={grabWidth}
-                      height={Math.abs(getY(0) - y) + 26 + lift}
+                      height={Math.max(y, getY(0)) - Math.min(y, getY(0) - 1, labelTop - 1)}
                       fill="transparent"
                       pointerEvents="all"
                     />
