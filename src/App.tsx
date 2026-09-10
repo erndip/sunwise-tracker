@@ -869,8 +869,20 @@ export default function App() {
 
       {/* Humble Footer, beautifully balanced with no margin clutter */}
       <footer className="mt-12 sm:mt-20 border-t border-slate-200/50 dark:border-slate-900 py-5 sm:h-16 sm:py-0 flex flex-col sm:flex-row items-center justify-between gap-1.5 text-center sm:text-left text-[11px] sm:text-xs text-slate-400 dark:text-slate-650 px-4 sm:px-8 max-w-7xl mx-auto font-mono">
-        <span>Sunwise Integration Calculus Model</span>
-        <span className="font-medium">Continuous UV Forecast Network Protocol</span>
+        <a
+          href="https://github.io/erndip"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+        >
+          github.io/erndip
+        </a>
+        <a
+          href="mailto:erniedippold@gmail.com"
+          className="font-medium hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+        >
+          Feedback
+        </a>
       </footer>
 
     </div>
