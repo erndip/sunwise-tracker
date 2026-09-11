@@ -205,9 +205,10 @@ export function useSessions(): UseSessions {
 
     if (syncing && db && user) {
       const colRef = collection(db, 'users', user.uid, 'sessions');
+      const firestore = db;
       getDocs(colRef)
         .then((snap) => {
-          const batch = writeBatch(db);
+          const batch = writeBatch(firestore);
           snap.forEach((d) => batch.delete(d.ref));
           return batch.commit();
         })
